@@ -66,6 +66,22 @@ COLUMN_ALIASES = {
     'Quelle': ['quelle', 'source', 'fördergeber', 'foerdergeber'],
     'Beschreibung': ['beschreibung', 'description', 'summary'],
     'Relevanz': ['relevanz', 'score', 'priorität', 'prioritaet'],
+    
+    
+    'Typ': ['typ', 'type', 'art'],
+    'Ort': ['ort', 'location', 'standort'],
+    'Status': ['status'],
+    'Veranstaltungsdatum': [
+        'veranstaltungsdatum', 'event_date'
+    ],
+    'Honorar': [
+        'honorar', 'förderhöhe', 'foerderhoehe', 'amount'
+    ],
+    'Förderfähigkeit': [
+        'förderfähigkeit', 'foerderfaehigkeit',
+        'eligibility'
+    ],
+
 }
 
 def first(value):
