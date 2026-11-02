@@ -367,10 +367,14 @@ def save(records):
         return
 
     
+    
     if not new_rows and not enriched and not any(
         column not in current_mapping
         for column in DEFAULT_COLUMNS
     ):
+        print('Keine Änderungen erforderlich.')
+        return
+
 
 
     if CSV_PATH.exists():
