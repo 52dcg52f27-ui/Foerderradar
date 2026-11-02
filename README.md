@@ -6,4 +6,4 @@ Kostenloser abonnierbarer Apple-Kalender. In `calls.csv` nur geprüfte Calls mit
 
 Nach Upload: Settings > Pages > Source **GitHub Actions** einstellen. Dann Actions > Kalender aktualisieren > Run workflow.
 
-Kalender-URL: `https://52dcg52f27-ui.github.io/Foerderradar/foerderradar.ics`
+Kalender-URL: `https://52dcg52f27-ui.github.io/Foerderradar/foerderradar.ics 
