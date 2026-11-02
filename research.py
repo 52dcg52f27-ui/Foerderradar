@@ -110,6 +110,25 @@ def main():
             topics = [category for category, words in KEYWORDS.items()
                       if any(re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', combined) for word in words)]
             deadline = extract_deadline(metadata, today)
+            results:
+            metadata = item.get('metadata') or {}
+            title = clean(metadata.get('title')) or clean(item.get('summary'))
+            description = clean(metadata.get('description'))
+            combined = (title + ' ' + description).lower()
+            topics = [category for category, words in KEYWORDS.items()
+                      if any(re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', combined) for word in words)]
+            deadline = extract_deadline(metadata, today)
+            url = first(item.get('url')) or first(metadata.get('url'))
+            if title and topics and deadline and url.startswith('https://'):
+                found[url] = {
+                    'title': title, 'deadline': deadline, 'url': url,
+                    'topic': ', '.join(topics),
+                    'status': first(metadata.get('status')),
+                    'type': first(metadata.get('type')),
+                }
+        print(f'Seite {page}: {len(results)} Datensaetze; insgesamt {scanned}; Treffer {len(found)}')
+        if len(results) < PA
+            
             url = first(item.get('url')) or first(metadata.get('url'))
             if title and topics and deadline and url.startswith('https://'):
                 found[url] = {
