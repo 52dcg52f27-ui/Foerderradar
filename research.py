@@ -10,14 +10,15 @@ import uuid
 
 BASE_URL = 'https://api.tech.ec.europa.eu/search-api/prod/rest/search'
 PAGE_SIZE = 100
-MAX_PAGES = 30  # Testlauf: maximal 3.000 Datensaetze
+MAX_PAGES = 200  # Bis zu 20.000 Datensaetze; Testmodus
 KEYWORDS = {
-    'Film & Kultur': ['film', 'cinema', 'documentary', 'culture', 'creative', 'media', 'audiovisual'],
-    'Feminismus & Queer': ['gender', 'women', 'feminist', 'equality', 'lgbti', 'lgbtq', 'queer'],
-    'Arbeit & Soziales': ['labour', 'labor', 'workers', 'employment', 'social inclusion', 'trade union'],
-    'Klima & Umwelt': ['climate', 'environment', 'biodiversity', 'soil', 'nature', 'sustainability'],
-    'Inklusion & Bildung': ['disability', 'accessibility', 'inclusion', 'education', 'childhood', 'youth'],
-    'Regionen & Sport': ['rural', 'regional development', 'sport', 'community', 'local development'],
+    'Film & Kultur': ['film', 'filme', 'filmproduktion', 'filmförderung', 'dokumentarfilm', 'kino', 'kultur', 'kulturförderung', 'medienkunst', 'bewegtbild', 'audiovisuell', 'cinema', 'documentary', 'culture', 'creative', 'media', 'audiovisual'],
+    'Feminismus & Queer': ['feminismus', 'gleichstellung', 'geschlechtergerechtigkeit', 'frauenrechte', 'queer', 'gender', 'women', 'feminist', 'equality', 'lgbti', 'lgbtq'],
+    'Arbeit & Soziales': ['arbeitskampf', 'gewerkschaft', 'arbeitnehmer', 'arbeitsbedingungen', 'mitbestimmung', 'sozialpolitik', 'labour', 'labor', 'workers', 'employment', 'social inclusion', 'trade union'],
+    'Klima & Umwelt': ['klima', 'klimaschutz', 'klimawandel', 'umwelt', 'nachhaltigkeit', 'biodiversität', 'bodenschutz', 'ortskernbelebung', 'climate', 'environment', 'biodiversity', 'soil', 'nature', 'sustainability'],
+    'Inklusion & Bildung': ['behinderung', 'barrierefreiheit', 'inklusion', 'bildung', 'antidiskriminierung', 'jugend', 'disability', 'accessibility', 'inclusion', 'education', 'childhood', 'youth'],
+    'Demokratie & Gesellschaft': ['demokratie', 'partizipation', 'aktivismus', 'zivilgesellschaft', 'menschenrechte', 'democracy', 'participation', 'civil society', 'human rights'],
+    'Regionen & Sport': ['regionalentwicklung', 'gemeindeentwicklung', 'ländlicher raum', 'stadtentwicklung', 'sport', 'rural', 'regional development', 'community', 'local development'],
 }
 
 def first(value):
@@ -45,7 +46,7 @@ def fetch_page(page):
     })
     fields = [
         ('query', json.dumps({'bool': {'must': []}}), 'application/json'),
-        ('languages', '["en"]', 'application/json'),
+        ('languages', '["en", "de"]', 'application/json'),
         ('displayLanguage', 'en', 'text/plain'),
     ]
     body, boundary = multipart(fields)
