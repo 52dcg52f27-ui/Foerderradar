@@ -102,12 +102,12 @@ def main():
             print('Keine weiteren Ergebnisse.')
             break
         scanned += len(results)
-        for item in results:
-            metadata = item.get('metadata') or {}
-            title = clean(metadata.get('title')) or clean(item.get('summary'))
-            description = clean(metadata.get('description'))
-            combined = (title + ' ' + description).lower()
-            topics = [category for category, words in KEYWORDS.items()
+            for item in results:
+                metadata = item.get('metadata') or {}
+                title = clean(metadata.get('title')) or clean(item.get('summary'))
+                description = clean(metadata.get('description'))
+                combined = (title + ' ' + description).lower()
+                topics = [category for category, words in KEYWORDS.items()
                       if any(re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', combined) for word in words)]
             deadline = extract_deadline(metadata, today)
             results:
