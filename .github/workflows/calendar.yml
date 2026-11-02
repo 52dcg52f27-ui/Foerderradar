@@ -43,17 +43,21 @@ jobs:
         env:
           TEST_MODE: '0'
 
+     
       - name: CSV dauerhaft speichern
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add calls.csv
+
           if ! git diff --cached --quiet; then
             git commit -m "Förderradar: Ausschreibungen aktualisieren"
-            git push
+            git pull --rebase origin main
+            git push origin HEAD:main
           else
-            echo "Keine neuen Förderungen."
+            echo "Keine Änderungen vorhanden."
           fi
+
 
       - name: Kalender erstellen
         run: python generate.py
