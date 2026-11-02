@@ -237,11 +237,11 @@ def save(records):
     by_url = {normalize_url(r['Link']): r for r in records}
     existing_urls = set()
     enriched = 0
-    for row in existing:
-        url = normalize_url(row.get(mapping['Link'], '')) if row.get(mapping['Link']) else ''
-        if not url:
-            continue
-        existing_urls.add(url)
+    by_key = {
+        opportunity_key(r): r
+        for r in records
+    }
+    existing_keys = set()
         record = by_url.get(url)
         # Existing entries are NEVER deleted, including lower-priority entries.
         title = row.get(mapping['Titel'], '')
