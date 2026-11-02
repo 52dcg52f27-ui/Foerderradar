@@ -360,10 +360,33 @@ def save(records):
     )
 
 
+
 def main():
+    from austria_film import collect_austria_film
+    from opportunities import collect_opportunities
+
+    # Bestehende EU-Recherche
     records = collect()
+
+    # Zusätzliche Quellen
+    film_calls = collect_austria_film()
+    other_calls = collect_opportunities()
+
+    records.extend(film_calls)
+    records.extend(other_calls)
+
+    print(f"Österreichische Filmförderungen: {len(film_calls)}")
+    print(f"Weitere Chancen: {len(other_calls)}")
+    print(f"Gesamte Treffer: {len(records)}")
+
     for r in records[:15]:
-        print(r['Frist'], '|', r['Themenbereich'], '|', r['Titel'], '|', r['Link'])
+        print(
+            r['Frist'], '|',
+            r['Themenbereich'], '|',
+            r['Titel'], '|',
+            r['Link']
+        )
+
     save(records)
 
 if __name__ == '__main__':
