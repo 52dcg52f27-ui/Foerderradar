@@ -17,7 +17,7 @@ BASE = 'https://api.tech.ec.europa.eu/search-api/prod/rest/search'
 PAGE_SIZE = 100
 MAX_PAGES = 100
 CSV_PATH = Path('calls.csv')
-TEST_MODE = os.getenv('TEST_MODE', '0') != '0'  # First run remainss read-only
+TEST_MODE = os.getenv('TEST_MODE', '0') != '0'  # Set TEST_MODE=1 to test without writing
 KEYWORDS = {
     'Film & Kultur': ['film', 'documentary', 'cinema', 'audiovisual', 'culture', 'cultural', 'creative', 'arts', 'media'],
     'Feminismus & Queer': ['gender', 'feminist', 'women', 'lgbt', 'queer', 'equality', 'gender-based violence'],
@@ -97,17 +97,52 @@ def future_deadline(meta):
                     pass
     return min(dates).isoformat() if dates else ''
 
+# Strong signals in the title are preferred to generic words in descriptions.
+HIGH_SIGNALS = [
+    'documentary', 'film', 'cinema', 'audiovisual', 'creative europe',
+    'creative innovation', 'media literacy', 'media freedom', 'journalism',
+    'cultural', 'culture', 'artist', 'arts', 'gender-based violence',
+    'women rights', 'women’s rights', 'lgbtiq', 'disability', 'accessibility',
+    'civil society', 'human rights', 'democracy', 'trade union', 'labour rights',
+]
+MEDIUM_SIGNALS = [
+    'participation', 'inclusive', 'inclusion', 'education', 'rural communities',
+    'community-led', 'social economy', 'climate resilience', 'heritage',
+    'gender', 'equality', 'sustainable cities', 'new european bauhaus',
+]
+EXCLUDE_TITLE = [
+    'law enforcement', 'policing', 'aircraft', 'aviation', 'photovoltaic',
+    'data centres', 'livestock', 'microbiome', 'pfas', 'wastewater',
+    'solar radiation', 'forestry', 'forest and forestry', 'agriculture',
+    'industrial electrification', 'research infrastructure',
+    'biodiversity monitoring', 'ocean observing', 'clean technologies',
+    'cybersecurity', 'cloud and mixed model',
+]
+
+def contains(text, word):
+    return bool(re.search(r'(?<!\w)' + re.escape(word.casefold()) + r'(?!\w)', text.casefold()))
+
 def topics_and_score(title, description):
     title_cf, desc_cf = title.casefold(), description.casefold()
     topics = []
     score = 0
     for category, words in KEYWORDS.items():
-        title_hits = sum(bool(re.search(r'(?<!\w)' + re.escape(w.casefold()) + r'(?!\w)', title_cf)) for w in words)
-        desc_hits = sum(bool(re.search(r'(?<!\w)' + re.escape(w.casefold()) + r'(?!\w)', desc_cf)) for w in words)
+        title_hits = sum(contains(title_cf, w) for w in words)
+        desc_hits = sum(contains(desc_cf, w) for w in words)
         if title_hits or desc_hits:
             topics.append(category)
             score += title_hits * 3 + min(desc_hits, 3)
     return topics, score
+
+def classify(title, description):
+    topics, score = topics_and_score(title, description)
+    if any(contains(title, x) for x in EXCLUDE_TITLE):
+        return topics, score, 'Niedrig'
+    if any(contains(title, x) for x in HIGH_SIGNALS):
+        return topics, score, 'Hoch'
+    if any(contains(title, x) for x in MEDIUM_SIGNALS):
+        return topics, score, 'Mittel'
+    return topics, score, 'Niedrig'
 
 def normalize_url(url):
     parsed = urllib.parse.urlsplit(url.strip())
@@ -131,18 +166,18 @@ def collect():
             title = clean(meta.get('title')) or clean(item.get('summary'))
             description = clean(meta.get('description'))
             deadline = future_deadline(meta)
-            topics, score = topics_and_score(title, description)
+            topics, score, priority = classify(title, description)
             url = first(item.get('url')) or first(meta.get('url'))
-            if not (title and deadline and topics and url.startswith('https://')):
+            if not (title and deadline and topics and priority != 'Niedrig' and url.startswith('https://')):
                 continue
             url = normalize_url(url)
             record = {
                 'Titel': title, 'Frist': deadline, 'Themenbereich': ', '.join(topics),
                 'Link': url, 'Quelle': 'EU Funding & Tenders (SEDIA)',
-                'Beschreibung': description[:1200], 'Relevanz': str(score),
+                'Beschreibung': description[:1200], 'Relevanz': priority,
             }
             old = found.get(url)
-            if old is None or (deadline, -score) < (old['Frist'], -int(old['Relevanz'])):
+            if old is None or (deadline, -score) < (old['Frist'], 0):
                 found[url] = record
         print(f'Seite {page}: {len(rows)} Ergebnisse', flush=True)
         if len(rows) < PAGE_SIZE:
@@ -150,7 +185,7 @@ def collect():
     if total is not None and scanned < total:
         raise RuntimeError(f'Incomplete scan: {scanned}/{total}; CSV not modified')
     print(f'Gescannte Datensätze: {scanned}; relevante Treffer: {len(found)}', flush=True)
-    return sorted(found.values(), key=lambda r: (r['Frist'], -int(r['Relevanz'])))
+    return sorted(found.values(), key=lambda r: (r['Frist'], r['Titel']))
 
 def find_columns(fieldnames):
     normalized = {re.sub(r'\s+', '', name.strip().casefold()): name for name in fieldnames}
@@ -170,29 +205,66 @@ def save(records):
         with CSV_PATH.open('r', encoding='utf-8-sig', newline='') as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
-                raise RuntimeError('Existing CSV has no header; refusing overwrite')
-            fieldnames = reader.fieldnames
+                raise RuntimeError('CSV without header: refusing overwrite')
+            fieldnames = list(reader.fieldnames)
             existing = list(reader)
     mapping = find_columns(fieldnames)
     if 'Link' not in mapping or 'Titel' not in mapping:
-        raise RuntimeError('Existing CSV schema has no recognizable Link and Titel columns; refusing modification')
-    seen = {normalize_url(row.get(mapping['Link'], '')) for row in existing if row.get(mapping['Link'])}
+        raise RuntimeError('CSV requires recognizable title and URL columns')
+
+    by_url = {normalize_url(r['Link']): r for r in records}
+    existing_urls = set()
+    enriched = 0
+    for row in existing:
+        url = normalize_url(row.get(mapping['Link'], '')) if row.get(mapping['Link']) else ''
+        if not url:
+            continue
+        existing_urls.add(url)
+        record = by_url.get(url)
+        # Existing entries are NEVER deleted, including lower-priority entries.
+        title = row.get(mapping['Titel'], '')
+        description = row.get(mapping.get('Beschreibung', ''), '')
+        topics, _, priority = classify(title, description)
+        values = {
+            'Themenbereich': record['Themenbereich'] if record else ', '.join(topics),
+            'Quelle': 'EU Funding & Tenders (SEDIA)',
+            'Beschreibung': record['Beschreibung'] if record else '',
+            'Relevanz': record['Relevanz'] if record else priority,
+        }
+        # Existing values and editorial notes are never overwritten.
+        for key, value in values.items():
+            col = mapping.get(key)
+            if col and value and not (row.get(col) or '').strip():
+                row[col] = value
+                enriched += 1
+        if 'topic' in row and not row['topic'].strip() and topics:
+            row['topic'] = ', '.join(topics)
+            enriched += 1
+        if 'status' in row and not row['status'].strip():
+            row['status'] = 'Zu prüfen'
+            enriched += 1
+
     new_rows = []
     for record in records:
-        if record['Link'] in seen:
+        if record['Link'] in existing_urls:
             continue
         row = {field: '' for field in fieldnames}
         for key, value in record.items():
             if key in mapping:
                 row[mapping[key]] = value
+        if 'topic' in row and not row['topic']:
+            row['topic'] = record['Themenbereich']
+        if 'status' in row:
+            row['status'] = 'Zu prüfen'
         new_rows.append(row)
-        seen.add(record['Link'])
-    print(f'Bestehend: {len(existing)}; neu: {len(new_rows)}', flush=True)
+        existing_urls.add(record['Link'])
+
+    print(f'Bestehend: {len(existing)}; neu: {len(new_rows)}; ergänzte Felder: {enriched}', flush=True)
     if TEST_MODE:
-        print('TESTMODUS: calls.csv bleibt unverändert. Für Schreiben TEST_MODE=0 setzen.')
+        print('TESTMODUS: CSV bleibt unverändert.')
         return
-    if not new_rows:
-        print('Keine neuen Einträge; CSV unverändert.')
+    if not new_rows and not enriched:
+        print('Keine Änderungen.')
         return
     if CSV_PATH.exists():
         backup = CSV_PATH.with_name('calls.backup.csv')
@@ -209,7 +281,7 @@ def save(records):
     finally:
         if os.path.exists(temp_name):
             os.unlink(temp_name)
-    print('CSV erfolgreich ergänzt:', len(new_rows))
+    print(f'CSV aktualisiert: {len(existing)} bestehende, {len(new_rows)} neue', flush=True)
 
 def main():
     records = collect()
@@ -219,3 +291,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
