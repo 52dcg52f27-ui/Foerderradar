@@ -122,7 +122,6 @@ def main():
     )
 
     results = data.get("results", [])
-il
     
     print("EU-Datensaetze abgerufen:", len(results))
 
