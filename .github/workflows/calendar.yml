@@ -1,3 +1,4 @@
+
 name: Förderkalender aktualisieren
 
 on:
@@ -12,26 +13,47 @@ on:
       - '.github/workflows/calendar.yml'
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
 
 jobs:
-  generate:
+  publish:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
-      - name: Repository laden
+      - name: Dateien laden
         uses: actions/checkout@v4
+
       - name: Python einrichten
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Kalender generieren
+
+      - name: Kalender erstellen
         run: python generate.py
-      - name: Kalenderdatei veröffentlichen
+
+      - name: Website vorbereiten
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f foerderradar.ics
-          if ! git diff --cached --quiet; then
-            git commit -m 'Kalender aktualisieren'
-            git push
-          fi
+          mkdir -p _site
+          cp foerderradar.ics _site/foerderradar.ics
+          echo '<h1>Förderradar</h1><p><a href="foerderradar.ics">Kalender abonnieren</a></p>' > _site/index.html
+
+      - name: GitHub Pages konfigurieren
+        uses: actions/configure-pages@v5
+
+      - name: Dateien hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Website veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
