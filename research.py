@@ -284,7 +284,7 @@ def save(records):
 
     # Spaltenzuordnung aktualisieren
 
-mapping = find_columns(fieldnames)
+    mapping = find_columns(fieldnames)
 
     if 'Link' not in mapping or 'Titel' not in mapping:
         raise RuntimeError(
