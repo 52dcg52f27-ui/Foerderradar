@@ -267,8 +267,24 @@ def save(records):
                 )
             fieldnames = list(reader.fieldnames)
             existing = list(reader)
+            
+            
 
-    mapping = find_columns(fieldnames)
+    
+
+    
+    
+    # Fehlende Spalten automatisch ergänzen
+    # Bestehende Spalten und Daten bleiben erhalten.
+    current_mapping = find_columns(fieldnames)
+
+    for column in DEFAULT_COLUMNS:
+        if column not in current_mapping:
+            fieldnames.append(column)
+
+    # Spaltenzuordnung aktualisieren
+
+mapping = find_columns(fieldnames)
 
     if 'Link' not in mapping or 'Titel' not in mapping:
         raise RuntimeError(
@@ -350,9 +366,12 @@ def save(records):
         print('TESTMODUS: CSV bleibt unverändert.')
         return
 
-    if not new_rows and not enriched:
-        print('Keine Änderungen.')
-        return
+    
+    if not new_rows and not enriched and not any(
+        column not in current_mapping
+        for column in DEFAULT_COLUMNS
+    ):
+
 
     if CSV_PATH.exists():
         backup = CSV_PATH.with_name(
