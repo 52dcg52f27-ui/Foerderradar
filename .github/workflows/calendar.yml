@@ -37,11 +37,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Förderrecherche ausführen
-        run: python research.py
+      
+      - name: Recherche ausführen
         env:
-          TEST_MODE: '0'
+          TEST_MODE: "1"
+        run: python research.py
 
      
       - name: CSV dauerhaft speichern
