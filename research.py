@@ -223,87 +223,142 @@ def opportunity_key(record):
 def save(records):
     existing = []
     fieldnames = DEFAULT_COLUMNS[:]
+
     if CSV_PATH.exists() and CSV_PATH.stat().st_size:
-        with CSV_PATH.open('r', encoding='utf-8-sig', newline='') as f:
+        with CSV_PATH.open(
+            'r', encoding='utf-8-sig', newline=''
+        ) as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
-                raise RuntimeError('CSV without header: refusing overwrite')
+                raise RuntimeError(
+                    'CSV without header: refusing overwrite'
+                )
             fieldnames = list(reader.fieldnames)
             existing = list(reader)
-    mapping = find_columns(fieldnames)
-    if 'Link' not in mapping or 'Titel' not in mapping:
-        raise RuntimeError('CSV requires recognizable title and URL columns')
 
-    by_url = {normalize_url(r['Link']): r for r in records}
-    existing_urls = set()
-    enriched = 0
+    mapping = find_columns(fieldnames)
+
+    if 'Link' not in mapping or 'Titel' not in mapping:
+        raise RuntimeError(
+            'CSV requires recognizable title and URL columns'
+        )
+
+    # Titel, URL und Frist gemeinsam vergleichen.
+    # So bleiben unterschiedliche Calls derselben
+    # Website als eigene Einträge erhalten.
     by_key = {
         opportunity_key(r): r
         for r in records
     }
+
     existing_keys = set()
-        record = by_url.get(url)
-        # Existing entries are NEVER deleted, including lower-priority entries.
-        title = row.get(mapping['Titel'], '')
-        description = row.get(mapping.get('Beschreibung', ''), '')
-        topics, _, priority = classify(title, description)
-        values = {
-            'Themenbereich': record['Themenbereich'] if record else ', '.join(topics),
-            'Quelle': 'EU Funding & Tenders (SEDIA)',
-            'Beschreibung': record['Beschreibung'] if record else '',
-            'Relevanz': record['Relevanz'] if record else priority,
+    enriched = 0
+
+    for row in existing:
+        canonical = {
+            key: row.get(column, '')
+            for key, column in mapping.items()
         }
-        # Existing values and editorial notes are never overwritten.
-        for key, value in values.items():
-            col = mapping.get(key)
-            if col and value and not (row.get(col) or '').strip():
-                row[col] = value
+
+        key = opportunity_key(canonical)
+        existing_keys.add(key)
+
+        record = by_key.get(key)
+
+        if not record:
+            continue
+
+        # Nur bisher leere Felder ergänzen.
+        # Bestehende Angaben niemals überschreiben.
+        for field in DEFAULT_COLUMNS:
+            column = mapping.get(field)
+            value = record.get(field, '')
+
+            if (
+                column
+                and value
+                and not (row.get(column) or '').strip()
+            ):
+                row[column] = value
                 enriched += 1
-        if 'topic' in row and not row['topic'].strip() and topics:
-            row['topic'] = ', '.join(topics)
-            enriched += 1
-        if 'status' in row and not row['status'].strip():
-            row['status'] = 'Zu prüfen'
-            enriched += 1
 
     new_rows = []
-    for record in records:
-        if record['Link'] in existing_urls:
+
+    for key, record in by_key.items():
+        if key in existing_keys:
             continue
+
         row = {field: '' for field in fieldnames}
-        for key, value in record.items():
-            if key in mapping:
-                row[mapping[key]] = value
-        if 'topic' in row and not row['topic']:
-            row['topic'] = record['Themenbereich']
+
+        for field, value in record.items():
+            column = mapping.get(field)
+
+            if column:
+                row[column] = value
+
+        if 'topic' in row:
+            row['topic'] = record.get(
+                'Themenbereich', ''
+            )
+
         if 'status' in row:
             row['status'] = 'Zu prüfen'
-        new_rows.append(row)
-        existing_urls.add(record['Link'])
 
-    print(f'Bestehend: {len(existing)}; neu: {len(new_rows)}; ergänzte Felder: {enriched}', flush=True)
+        new_rows.append(row)
+        existing_keys.add(key)
+
+    print(
+        f'Bestehend: {len(existing)}; '
+        f'neu: {len(new_rows)}; '
+        f'ergänzte Felder: {enriched}',
+        flush=True
+    )
+
     if TEST_MODE:
         print('TESTMODUS: CSV bleibt unverändert.')
         return
+
     if not new_rows and not enriched:
         print('Keine Änderungen.')
         return
+
     if CSV_PATH.exists():
-        backup = CSV_PATH.with_name('calls.backup.csv')
+        backup = CSV_PATH.with_name(
+            'calls.backup.csv'
+        )
         shutil.copy2(CSV_PATH, backup)
         print('Backup:', backup)
-    fd, temp_name = tempfile.mkstemp(prefix='calls-', suffix='.csv', dir=str(CSV_PATH.parent))
+
+    fd, temp_name = tempfile.mkstemp(
+        prefix='calls-',
+        suffix='.csv',
+        dir=str(CSV_PATH.parent)
+    )
+
     try:
-        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+        with os.fdopen(
+            fd, 'w', encoding='utf-8', newline=''
+        ) as f:
+            writer = csv.DictWriter(
+                f, fieldnames=fieldnames
+            )
             writer.writeheader()
             writer.writerows(existing)
             writer.writerows(new_rows)
+
         os.replace(temp_name, CSV_PATH)
+
     finally:
         if os.path.exists(temp_name):
             os.unlink(temp_name)
-    print(f'CSV aktualisiert: {len(existing)} bestehende, {len(new_rows)} neue', flush=True)
+
+    print(
+        f'CSV aktualisiert: '
+        f'{len(existing)} bestehende, '
+        f'{len(new_rows)} neue',
+        flush=True
+    )
+
 
 def main():
     records = collect()
