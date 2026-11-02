@@ -130,7 +130,6 @@ def main():
         print("Titel:", item.get("summary"))
         print("Metadatenfelder:", list(metadata.keys()))
         print("---")
-
     
     print("EU-Datensaetze abgerufen:", len(results))
 
