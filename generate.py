@@ -1,34 +1,260 @@
-import csv, datetime as dt, pathlib, hashlib
-from zoneinfo import ZoneInfo
-ROOT=pathlib.Path(__file__).parent
 
-def esc(s):
-    return str(s).replace('\\','\\\\').replace('\n','\\n').replace(',','\\,').replace(';','\\;')
+import csv
+import datetime as dt
+import hashlib
+import pathlib
+import re
 
-def fold(s):
-    chunks=[]
-    while len(s.encode('utf-8'))>73:
-        i=1
-        while i<len(s) and len(s[:i+1].encode('utf-8'))<=73:i+=1
-        chunks.append(s[:i]);s=s[i:]
-    chunks.append(s)
-    return '\r\n '.join(chunks)
+ROOT = pathlib.Path(__file__).resolve().parent
+CSV_PATH = ROOT / "calls.csv"
+ICS_PATH = ROOT / "foerderradar.ics"
 
-rows=list(csv.DictReader((ROOT/'calls.csv').open(encoding='utf-8-sig',newline='')))
-now=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Foerderradar//DACH EU//DE','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:Foerderradar DACH + EU','X-WR-CALDESC:Gepruefte Foerderfristen']
-count=0
-for r in rows:
-    if r.get('status','').strip().lower()!='verified':continue
-    try: date=dt.date.fromisoformat(r['deadline'].strip())
-    except ValueError:continue
-    uid=hashlib.sha256((r['title']+r.get('url','')).encode()).hexdigest()[:24]+'@foerderradar'
-    desc=' | '.join(filter(None,[r.get('topic',''),r.get('amount',''),r.get('eligibility',''),r.get('notes',''),r.get('url','')]))
-    lines+=['BEGIN:VEVENT',f'UID:{uid}',f'DTSTAMP:{now}',f'DTSTART;VALUE=DATE:{date:%Y%m%d}',f'DTEND;VALUE=DATE:{date+dt.timedelta(days=1):%Y%m%d}',f'SUMMARY:{esc("Frist: "+r["title"])}',f'DESCRIPTION:{esc(desc)}']
-    if r.get('url'):lines.append('URL:'+r['url'])
-    for days in (14,3):
-        lines+=['BEGIN:VALARM',f'TRIGGER:-P{days}D','ACTION:DISPLAY',f'DESCRIPTION:{esc("Foerderfrist: "+r["title"])}','END:VALARM']
-    lines+=['END:VEVENT'];count+=1
-lines+=['END:VCALENDAR']
-(ROOT/'foerderradar.ics').write_bytes(('\r\n'.join(fold(x) for x in lines)+'\r\n').encode('utf-8'))
-print('Generated',count,'verified events')
+TODAY = dt.datetime.now(
+    dt.timezone.utc
+).date()
+
+NOW = dt.datetime.now(
+    dt.timezone.utc
+).strftime("%Y%m%dT%H%M%SZ")
+
+
+def get(row, *names):
+    """Liest deutsche und englische Spalten."""
+    normalized = {
+        str(k).strip().casefold(): v
+        for k, v in row.items()
+        if k is not None
+    }
+
+    for name in names:
+        value = normalized.get(name.casefold(), "")
+        if value is not None and str(value).strip():
+            return str(value).strip()
+
+    return ""
+
+
+def escape(value):
+    """Sonderzeichen für ICS formatieren."""
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\n", "\\n")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+    )
+
+
+def fold(line):
+    """ICS-Zeilen auf maximal 75 Bytes falten."""
+    parts = []
+    current = ""
+
+    for char in line:
+        candidate = current + char
+
+        if len(candidate.encode("utf-8")) > 75:
+            parts.append(current)
+            current = " " + char
+        else:
+            current = candidate
+
+    parts.append(current)
+    return "\r\n".join(parts)
+
+
+def parse_date(value):
+    """Akzeptiert ISO-Daten und Datumsangaben."""
+    value = str(value).strip()
+
+    for pattern in (
+        "%Y-%m-%d",
+        "%d.%m.%Y",
+        "%d/%m/%Y",
+    ):
+        try:
+            return dt.datetime.strptime(
+                value[:10], pattern
+            ).date()
+        except ValueError:
+            pass
+
+    match = re.search(
+        r"\d{4}-\d{2}-\d{2}", value
+    )
+
+    if match:
+        try:
+            return dt.date.fromisoformat(
+                match.group()
+            )
+        except ValueError:
+            pass
+
+    return None
+
+
+def create_calendar():
+    if not CSV_PATH.exists():
+        raise FileNotFoundError(
+            f"CSV nicht gefunden: {CSV_PATH}"
+        )
+
+    with CSV_PATH.open(
+        encoding="utf-8-sig",
+        newline=""
+    ) as file:
+        rows = list(csv.DictReader(file))
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Foerderradar//DACH EU//DE",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:Foerderradar DACH + EU",
+        "X-WR-CALDESC:Foerderungen und Ausschreibungen",
+        "X-PUBLISHED-TTL:PT12H",
+    ]
+
+    count = 0
+    skipped = 0
+    seen = set()
+
+    for row in rows:
+        title = get(row, "Titel", "title")
+        deadline = get(row, "Frist", "deadline")
+        url = get(row, "Link", "url")
+        topic = get(
+            row, "Themenbereich", "topic"
+        )
+        source = get(row, "Quelle", "source")
+        description = get(
+            row, "Beschreibung",
+            "description", "notes"
+        )
+        relevance = get(
+            row, "Relevanz", "priority"
+        )
+        status = get(
+            row, "Status", "status"
+        ).casefold()
+
+        if not title or not deadline:
+            skipped += 1
+            continue
+
+        if status in (
+            "rejected", "archived",
+            "abgelehnt", "archiviert",
+            "ungültig", "invalid"
+        ):
+            skipped += 1
+            continue
+
+        date = parse_date(deadline)
+
+        if date is None or date < TODAY:
+            skipped += 1
+            continue
+
+        key = (
+            title.casefold(),
+            date.isoformat(),
+            url
+        )
+
+        if key in seen:
+            skipped += 1
+            continue
+
+        seen.add(key)
+
+        uid = (
+            hashlib.sha256(
+                repr(key).encode("utf-8")
+            ).hexdigest()[:24]
+            + "@foerderradar"
+        )
+
+        details = [
+            topic,
+            f"Quelle: {source}" if source else "",
+            f"Relevanz: {relevance}" if relevance else "",
+            f"Status: {status}" if status else "",
+            get(row, "Typ", "type"),
+            get(row, "Ort", "location"),
+            get(row, "Honorar", "amount"),
+            get(row, "Förderfähigkeit", "eligibility"),
+            description,
+            url,
+        ]
+
+        event_description = "\n".join(
+            x for x in details if x
+        )
+
+        lines.extend([
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{NOW}",
+            f"DTSTART;VALUE=DATE:{date:%Y%m%d}",
+            (
+                "DTEND;VALUE=DATE:"
+                f"{date + dt.timedelta(days=1):%Y%m%d}"
+            ),
+            f"SUMMARY:{escape('Frist: ' + title)}",
+            f"DESCRIPTION:{escape(event_description)}",
+        ])
+
+        if url.startswith(
+            ("https://", "http://")
+        ):
+            lines.append(f"URL:{url}")
+
+        for days in (14, 3):
+            lines.extend([
+                "BEGIN:VALARM",
+                f"TRIGGER:-P{days}D",
+                "ACTION:DISPLAY",
+                (
+                    "DESCRIPTION:"
+                    + escape("Förderfrist: " + title)
+                ),
+                "END:VALARM",
+            ])
+
+        lines.append("END:VEVENT")
+        count += 1
+
+    lines.append("END:VCALENDAR")
+
+    content = (
+        "\r\n".join(
+            fold(line) for line in lines
+        )
+        + "\r\n"
+    )
+
+    if count == 0:
+        raise RuntimeError(
+            "Keine Kalendereinträge erstellt. "
+            "CSV und Spaltennamen prüfen. "
+            "Bestehender Kalender bleibt erhalten."
+        )
+
+    ICS_PATH.write_bytes(
+        content.encode("utf-8")
+    )
+
+    print(f"CSV-Einträge insgesamt: {len(rows)}")
+    print(f"Kalendereinträge erstellt: {count}")
+    print(f"Übersprungene Einträge: {skipped}")
+    print(f"Kalender gespeichert: {ICS_PATH}")
+
+
+if __name__ == "__main__":
+    create_calendar()
+
