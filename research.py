@@ -41,7 +41,23 @@ KEYWORDS = {
     'Demokratie & Gesellschaft': ['democracy', 'civil society', 'participation', 'human rights'],
     'Regionen & Sport': ['rural', 'regional development', 'community', 'sport'],
 }
-DEFAULT_COLUMNS = ['Titel', 'Frist', 'Themenbereich', 'Link', 'Quelle', 'Beschreibung', 'Relevanz']
+
+DEFAULT_COLUMNS = [
+    'Titel',
+    'Frist',
+    'Themenbereich',
+    'Link',
+    'Quelle',
+    'Beschreibung',
+    'Relevanz',
+    'Typ',
+    'Ort',
+    'Status',
+    'Veranstaltungsdatum',
+    'Honorar',
+    'Förderfähigkeit',
+]
+
 COLUMN_ALIASES = {
     'Titel': ['titel', 'title', 'name'],
     'Frist': ['frist', 'deadline', 'einreichfrist', 'bewerbungsfrist'],
