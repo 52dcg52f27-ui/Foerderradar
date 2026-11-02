@@ -39,6 +39,7 @@ def multipart(fields):
     chunks.append(f"--{boundary}--\r\n")
     return "".join(chunks).encode("utf-8"), boundary
 
+
 def fetch(page):
     query = {
         "bool": {
@@ -79,6 +80,7 @@ def fetch(page):
 
     with urllib.request.urlopen(request, timeout=45) as response:
         return json.load(response)
+
 
 
 def future_deadline(meta):
