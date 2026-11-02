@@ -17,6 +17,20 @@ BASE = 'https://api.tech.ec.europa.eu/search-api/prod/rest/search'
 PAGE_SIZE = 100
 MAX_PAGES = 100
 CSV_PATH = Path('calls.csv')
+
+# Förderradar: Datenquellen
+SOURCES = {
+    "eu_sedia": True,
+    "austria_film": False,
+    "austria_culture": False,
+    "austria_tenders": False,
+    "germany": False,
+    "switzerland": False,
+    "festivals": False,
+    "residencies": False,
+    "paid_projects": False,
+}
+
 TEST_MODE = os.getenv('TEST_MODE', '0') != '0'  # Set TEST_MODE=1 to test without writing
 KEYWORDS = {
     'Film & Kultur': ['film', 'documentary', 'cinema', 'audiovisual', 'culture', 'cultural', 'creative', 'arts', 'media'],
