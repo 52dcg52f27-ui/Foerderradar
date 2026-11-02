@@ -94,3 +94,39 @@ def main():
             total = data.get('totalResults')
             print('Gesamtzahl laut API:', total)
             print('Metadatenfelder:', sorted((results[0].get('metadata') or {}).keys()) if results else [])
+            if results:
+                m = results[0].get('metadata') or {}
+                print('Beispiel Status/Typ/Frist:', {k: m.get(k) for k in ('status', 'type', 'deadlineDate', 'closingDate')})
+        if not results:
+            print('Keine weiteren Ergebnisse.')
+            break
+        scanned += len(results)
+        for item in results:
+            metadata = item.get('metadata') or {}
+            title = clean(metadata.get('title')) or clean(item.get('summary'))
+            description = clean(metadata.get('description'))
+            combined = (title + ' ' + description).lower()
+            topics = [category for category, words in KEYWORDS.items()
+                      if any(re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', combined) for word in words)]
+            deadline = extract_deadline(metadata, today)
+            url = first(item.get('url')) or first(metadata.get('url'))
+            if title and topics and deadline and url.startswith('https://'):
+                found[url] = {
+                    'title': title, 'deadline': deadline, 'url': url,
+                    'topic': ', '.join(topics),
+                    'status': first(metadata.get('status')),
+                    'type': first(metadata.get('type')),
+                }
+        print(f'Seite {page}: {len(results)} Datensaetze; insgesamt {scanned}; Treffer {len(found)}')
+        if len(results) < PAGE_SIZE or (isinstance(total, int) and scanned >= total):
+            break
+        time.sleep(0.15)
+    calls = sorted(found.values(), key=lambda c: (c['deadline'], c['title']))
+    print(f'\nGescannt: {scanned} | Passende Calls mit zukuenftiger Frist: {len(calls)}')
+    for call in calls[:30]:
+        print(f"{call['deadline']} | {call['topic']} | {call['title']} | {call['url']}")
+    print('TESTLAUF: calls.csv wurde nicht veraendert.')
+    print('Hinweis: Treffer sind noch nicht auf Foerderfaehigkeit und offenen Status geprueft.')
+
+if __name__ == '__main__':
+    main()
