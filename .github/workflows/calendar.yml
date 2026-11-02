@@ -40,7 +40,7 @@ jobs:
       
       - name: Recherche ausführen
         env:
-          TEST_MODE: "1"
+          TEST_MODE: "0"
         run: python research.py
 
      
