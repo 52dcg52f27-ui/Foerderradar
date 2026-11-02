@@ -122,6 +122,15 @@ def main():
     )
 
     results = data.get("results", [])
+
+    
+    print("Feldnamen der ersten Ergebnisse:")
+    for item in results[:5]:
+        metadata = item.get("metadata") or {}
+        print("Titel:", item.get("summary"))
+        print("Metadatenfelder:", list(metadata.keys()))
+        print("---")
+
     
     print("EU-Datensaetze abgerufen:", len(results))
 
