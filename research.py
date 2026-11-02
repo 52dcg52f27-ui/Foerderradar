@@ -212,6 +212,14 @@ def find_columns(fieldnames):
                 break
     return mapping
 
+
+def opportunity_key(record):
+    """Unterscheidet Ausschreibungen auch bei gleicher URL."""
+    url = normalize_url(record.get("Link", ""))
+    title = clean(record.get("Titel", "")).casefold()
+    deadline = str(record.get("Frist", "")).strip()
+    return (url, title, deadline)
+
 def save(records):
     existing = []
     fieldnames = DEFAULT_COLUMNS[:]
