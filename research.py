@@ -17,7 +17,7 @@ BASE = 'https://api.tech.ec.europa.eu/search-api/prod/rest/search'
 PAGE_SIZE = 100
 MAX_PAGES = 100
 CSV_PATH = Path('calls.csv')
-TEST_MODE = os.getenv('TEST_MODE', '0') != '0'  # First run remains read-only
+TEST_MODE = os.getenv('TEST_MODE', '0') != '0'  # First run remainss read-only
 KEYWORDS = {
     'Film & Kultur': ['film', 'documentary', 'cinema', 'audiovisual', 'culture', 'cultural', 'creative', 'arts', 'media'],
     'Feminismus & Queer': ['gender', 'feminist', 'women', 'lgbt', 'queer', 'equality', 'gender-based violence'],
