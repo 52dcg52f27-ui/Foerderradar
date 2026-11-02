@@ -110,17 +110,20 @@ def main():
         method="POST",
     )
 
+
     with urllib.request.urlopen(request, timeout=40) as response:
         data = json.load(response)
 
-   print("Antwortfelder:", list(data.keys()))
-print("Gesamtzahl:", data.get("totalResults"))
-print("Erster Datensatz:", json.dumps(
-    data.get("results", [])[:1],
-    ensure_ascii=False
-)[:2500])
-    
+    print("Antwortfelder:", list(data.keys()))
+    print("Gesamtzahl:", data.get("totalResults"))
+    print(
+        "Erster Datensatz:",
+        json.dumps(data.get("results", [])[:1], ensure_ascii=False)[:2500]
+    )
+
     results = data.get("results", [])
+il
+    
     print("EU-Datensaetze abgerufen:", len(results))
 
     found = []
