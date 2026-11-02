@@ -44,20 +44,26 @@ def fetch(page):
         "bool": {
             "must": [
                 {"terms": {"type": ["1", "2", "8"]}},
-                {"terms": {"status": ["31094501", "31094502", "31094503"]}},
+                {"terms": {"status": ["31094501", "31094502"]}},
             ]
         }
     }
+
     fields = [
         ("query", json.dumps(query), "application/json"),
         ("languages", '["en"]', "application/json"),
         ("displayLanguage", "en", "text/plain"),
     ]
+
     body, boundary = multipart(fields)
+
     params = urllib.parse.urlencode({
-        "apiKey": "SEDIA", "text": "*",
-        "pageSize": PAGE_SIZE, "pageNumber": page,
+        "apiKey": "SEDIA",
+        "text": "*",
+        "pageSize": PAGE_SIZE,
+        "pageNumber": page,
     })
+
     request = urllib.request.Request(
         BASE + "?" + params,
         data=body,
@@ -70,8 +76,10 @@ def fetch(page):
             "Origin": "https://ec.europa.eu",
         },
     )
+
     with urllib.request.urlopen(request, timeout=45) as response:
         return json.load(response)
+
 
 def future_deadline(meta):
     today = dt.date.today()
